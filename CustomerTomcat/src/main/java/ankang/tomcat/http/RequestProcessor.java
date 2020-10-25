@@ -25,7 +25,6 @@ public class RequestProcessor implements Runnable {
     @SneakyThrows
     @Override
     public void run() {
-
         // 使用输入流获传输信息
         final InputStream inputStream = socket.getInputStream();
 
@@ -40,6 +39,6 @@ public class RequestProcessor implements Runnable {
             // 处理动态资源
             servlet.service(request , response);
         }
-
+        socket.close();
     }
 }

@@ -11,6 +11,7 @@ import org.dom4j.Element;
 import org.dom4j.Node;
 import org.dom4j.io.SAXReader;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -38,9 +38,20 @@ public class Bootstrap {
     @Setter
     private int port = 8080;
 
-    private Map<String, Servlet> servletMap = new HashMap<>(16);
+    /**
+     * v3.0-v4.1之间Servlet存放集合
+     */
+    private final Map<String, Servlet> servletMap = new HashMap<>(16);
 
-    private ThreadPoolExecutor threadPoolExecutor;
+    /**
+     * 公用线程池
+     */
+    private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(2 , 3 , 10 , TimeUnit.SECONDS , new ArrayBlockingQueue<>(16));
+
+    /**
+     * webapps绝对路径
+     */
+    private static final String WEBAPPS_PATH = new File("").getAbsolutePath() + File.separator + "CustomerTomcat" + File.separator + "webapps";
 
     /**
      * Tomcat启动时需要初始化展开的一些操作
@@ -49,22 +60,7 @@ public class Bootstrap {
         final ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("==========>>>>> Tomcat start on port: " + port);
 
-        loadServlet();
-
-        threadPoolExecutor = new ThreadPoolExecutor(1 , 3 , 10 , TimeUnit.SECONDS , new ArrayBlockingQueue<>(16));
-
-        while (true) {
-            // 没有请求就阻塞在这里
-            final Socket socket = serverSocket.accept();
-
-//            v1_0(socket);
-//            v2_0(socket);
-//            v3_0(socket);
-//            v4_0(socket);
-            v4_1(socket);
-
-//            socket.close();
-        }
+        v4_1(serverSocket);
     }
 
     /**
@@ -81,7 +77,8 @@ public class Bootstrap {
             final String servletClass = element.elementText("servlet-class");
             final String urlPattern = document.selectSingleNode("//servlet-mapping[servlet-name='" + servletName + "']/url-pattern").getText();
 
-            final Servlet servlet = (Servlet) Class.forName(servletClass).getConstructor().newInstance();
+            final Class<Servlet> cls = (Class<Servlet>) new ServletClassLoader(WEBAPPS_PATH).loadClass(urlPattern + "/" + servletClass);
+            final Servlet servlet = cls.getConstructor().newInstance();
 
             servletMap.put(urlPattern , servlet);
         }
@@ -94,49 +91,68 @@ public class Bootstrap {
      *
      * @throws IOException
      */
-    private final void v1_0(Socket socket) throws IOException {
-        // 使用输出流向外输出信息
-        final OutputStream os = socket.getOutputStream();
-        final String data = "Hello Tomcat";
-        final String response = HttpProtocolUtil.getHttpHeader200(data.getBytes().length) + data;
-        os.write(response.getBytes());
+    private final void v1_0(ServerSocket serverSocket) throws IOException {
+        while (true) {
+            // 没有请求就阻塞在这里
+            final Socket socket = serverSocket.accept();
+            // 使用输出流向外输出信息
+            final OutputStream os = socket.getOutputStream();
+            final String data = "Hello Tomcat";
+            final String response = HttpProtocolUtil.getHttpHeader200(data.getBytes().length) + data;
+            os.write(response.getBytes());
+
+            socket.close();
+        }
+
+
     }
 
     /**
      * Tomcat 2.0版本
      * 需求：封装Request和Response对象，返回html静态资源文件
      */
-    private final void v2_0(Socket socket) throws IOException {
-        // 使用输入流获传输信息
-        final InputStream inputStream = socket.getInputStream();
+    private final void v2_0(ServerSocket serverSocket) throws IOException {
+        while (true) {
+            // 没有请求就阻塞在这里
+            final Socket socket = serverSocket.accept();
+            // 使用输入流获传输信息
+            final InputStream inputStream = socket.getInputStream();
 
-        final Request request = new Request(inputStream);
-        final Response response = new Response(socket.getOutputStream());
+            final Request request = new Request(inputStream);
+            final Response response = new Response(socket.getOutputStream());
 
-        response.outputHtml(request.getUrl());
+            response.outputHtml(request.getUrl());
+        }
     }
 
     /**
      * Tomcat 3.0版本
      * 需求：封装Servlet
      *
-     * @param socket
+     * @param serverSocket
      * @throws Exception
      */
-    private final void v3_0(Socket socket) throws Exception {
-        // 使用输入流获传输信息
-        final InputStream inputStream = socket.getInputStream();
+    private final void v3_0(ServerSocket serverSocket) throws Exception {
+        loadServlet();
 
-        final Request request = new Request(inputStream);
-        final Response response = new Response(socket.getOutputStream());
+        while (true) {
+            // 没有请求就阻塞在这里
+            final Socket socket = serverSocket.accept();
 
-        // 处理静态资源
-        final Servlet servlet = servletMap.get(request.getUrl());
-        if (servlet == null) {
-            response.outputHtml(request.getUrl());
-        } else {
-            // 处理动态资源
-            servlet.service(request , response);
+            // 使用输入流获传输信息
+            final InputStream inputStream = socket.getInputStream();
+
+            final Request request = new Request(inputStream);
+            final Response response = new Response(socket.getOutputStream());
+
+            // 处理静态资源
+            final Servlet servlet = servletMap.get(request.getUrl());
+            if (servlet == null) {
+                response.outputHtml(request.getUrl());
+            } else {
+                // 处理动态资源
+                servlet.service(request , response);
+            }
         }
     }
 
@@ -144,20 +160,34 @@ public class Bootstrap {
      * Tomcat 4.0版本
      * 需求：多线程
      *
-     * @param socket
+     * @param serverSocket
      */
-    private final void v4_0(Socket socket) {
-        new Thread(new RequestProcessor(socket , servletMap)).start();
+    private final void v4_0(ServerSocket serverSocket) throws Exception {
+        loadServlet();
+        while (true) {
+            // 没有请求就阻塞在这里
+            final Socket socket = serverSocket.accept();
+
+            new Thread(new RequestProcessor(socket , servletMap)).start();
+        }
+
     }
 
     /**
-     * Tomcat 4.0版本
-     * 需求：多线程，使用线程池
+     * Tomcat 4.1版本
+     * 需求：多线程，使用线程池，使用自定义ClassLoader
      *
-     * @param socket
+     * @param serverSocket
      */
-    private final void v4_1(Socket socket) {
-        threadPoolExecutor.execute(new RequestProcessor(socket , servletMap));
+    private final void v4_1(ServerSocket serverSocket) throws Exception {
+        loadServlet();
+
+        while (true) {
+            // 没有请求就阻塞在这里
+            final Socket socket = serverSocket.accept();
+
+            threadPoolExecutor.execute(new RequestProcessor(socket , servletMap));
+        }
     }
 
     /**

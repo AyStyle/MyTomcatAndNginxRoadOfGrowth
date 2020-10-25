@@ -1,12 +1,40 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <web-app>
-    <servlet>
-        <servlet-name>ankang</servlet-name>
-        <servlet-class>ankang.tomcat.server.MyServlet</servlet-class>
-    </servlet>
+<!--    -->
+<!--    <servlet>-->
+<!--        <servlet-name>ankang</servlet-name>-->
+<!--        <servlet-class>ankang.tomcat.server.MyServlet</servlet-class>-->
+<!--    </servlet>-->
+<!--    -->
+<!--    <servlet-mapping>-->
+<!--        <servlet-name>ankang</servlet-name>-->
+<!--        <url-pattern>/ankang</url-pattern>-->
+<!--    </servlet-mapping>-->
     
+    <servlet>
+        <servlet-name>project1</servlet-name>
+        <servlet-class>a.b.c.MyServlet</servlet-class>
+    </servlet>
     <servlet-mapping>
-        <servlet-name>ankang</servlet-name>
-        <url-pattern>/ankang</url-pattern>
+        <servlet-name>project1</servlet-name>
+        <url-pattern>/project1</url-pattern>
+    </servlet-mapping>
+    
+    <servlet>
+        <servlet-name>project2</servlet-name>
+        <servlet-class>a.b.c.MyServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>project2</servlet-name>
+        <url-pattern>/project2</url-pattern>
+    </servlet-mapping>
+    
+    <servlet>
+        <servlet-name>project3</servlet-name>
+        <servlet-class>a.b.c.MyServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>project3</servlet-name>
+        <url-pattern>/project3</url-pattern>
     </servlet-mapping>
 </web-app>
